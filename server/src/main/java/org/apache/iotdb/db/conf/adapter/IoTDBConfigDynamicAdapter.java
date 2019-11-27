@@ -149,10 +149,12 @@ public class IoTDBConfigDynamicAdapter implements IDynamicAdapter {
       CONFIG.setMaxMemtableNumber(maxMemTableNum);
       CONFIG.setTsFileSizeThreshold(tsFileSizeThreshold);
       CONFIG.setMemtableSizeThreshold(memtableSizeInByte);
-      if(LOGGER.isDebugEnabled()) {
+      if (LOGGER.isDebugEnabled()) {
         LOGGER.debug(
-            "After adjusting, max memTable num is {}, tsFile threshold is {}, memtableSize is {}, memTableSizeFloorThreshold is {}",
-            maxMemTableNum, tsFileSizeThreshold, memtableSizeInByte, memTableSizeFloorThreshold);
+            "After adjusting, max memTable num is {}, tsFile threshold is {}, memtableSize is {}, memTableSizeFloorThreshold is {}, storage group = {}, total timeseries = {}, the max number of timeseries among storage groups = {}",
+            maxMemTableNum, tsFileSizeThreshold, memtableSizeInByte, memTableSizeFloorThreshold,
+            totalStorageGroup, totalTimeseries,
+            MManager.getInstance().getMaximalSeriesNumberAmongStorageGroups());
       }
       currentMemTableSize = memtableSizeInByte;
     }
@@ -220,8 +222,7 @@ public class IoTDBConfigDynamicAdapter implements IDynamicAdapter {
     if (!tryToAdaptParameters()) {
       totalStorageGroup -= diff;
       maxMemTableNum -= IoTDBConstant.MEMTABLE_NUM_IN_EACH_STORAGE_GROUP * diff;
-      throw new ConfigAdjusterException(
-          "The IoTDB system load is too large to create storage group.");
+      throw new ConfigAdjusterException("create storage group");
     }
   }
 
@@ -235,7 +236,7 @@ public class IoTDBConfigDynamicAdapter implements IDynamicAdapter {
     if (!tryToAdaptParameters()) {
       totalTimeseries -= diff;
       staticMemory -= diff * TIMESERIES_METADATA_SIZE_IN_BYTE;
-      throw new ConfigAdjusterException("The IoTDB system load is too large to add timeseries.");
+      throw new ConfigAdjusterException("add timeseries");
     }
   }
 

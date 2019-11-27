@@ -29,7 +29,7 @@ import org.apache.iotdb.db.engine.merge.manage.MergeContext;
 import org.apache.iotdb.db.engine.merge.manage.MergeResource;
 import org.apache.iotdb.db.engine.merge.recover.MergeLogger;
 import org.apache.iotdb.db.engine.storagegroup.TsFileResource;
-import org.apache.iotdb.db.exception.MetadataErrorException;
+import org.apache.iotdb.db.exception.metadata.MetadataException;
 import org.apache.iotdb.db.metadata.MManager;
 import org.apache.iotdb.db.utils.MergeUtils;
 import org.apache.iotdb.tsfile.read.common.Path;
@@ -98,7 +98,7 @@ public class MergeTask implements Callable<Void> {
     return null;
   }
 
-  private void doMerge() throws IOException, MetadataErrorException {
+  private void doMerge() throws IOException, MetadataException {
     if (logger.isInfoEnabled()) {
       logger.info("{} starts to merge {} seqFiles, {} unseqFiles", taskName,
           resource.getSeqFiles().size(), resource.getUnseqFiles().size());
@@ -158,6 +158,10 @@ public class MergeTask implements Callable<Void> {
     for (TsFileResource seqFile : resource.getSeqFiles()) {
       File mergeFile = new File(seqFile.getFile().getPath() + MERGE_SUFFIX);
       mergeFile.delete();
+      seqFile.setMerging(false);
+    }
+    for (TsFileResource unseqFile : resource.getUnseqFiles()) {
+      unseqFile.setMerging(false);
     }
 
     File logFile = new File(storageGroupSysDir, MergeLogger.MERGE_LOG_NAME);
