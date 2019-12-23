@@ -820,7 +820,7 @@ public class MManager {
   }
 
   /**
-   * unction for getting series type with check.
+   * function for getting series type with check.
    */
   TSDataType getSeriesTypeWithCheck(String fullPath) throws PathException {
 

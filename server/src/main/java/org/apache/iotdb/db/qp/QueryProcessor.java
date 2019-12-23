@@ -18,20 +18,65 @@
  */
 package org.apache.iotdb.db.qp;
 
+import java.lang.management.PlatformLoggingMXBean;
+import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.SQLInput;
 import java.time.ZoneId;
+import java.util.*;
+
+import ch.qos.logback.core.net.SyslogOutputStream;
+import ch.qos.logback.core.rolling.TimeBasedFileNamingAndTriggeringPolicy;
+import org.apache.calcite.avatica.util.Casing;
+import org.apache.calcite.jdbc.CalciteConnection;
+import org.apache.calcite.linq4j.tree.UnaryExpression;
+import org.apache.calcite.plan.*;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
+import org.apache.calcite.plan.volcano.VolcanoPlanner;
+import org.apache.calcite.rel.RelCollationTraitDef;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.rules.CalcRelSplitter;
+import org.apache.calcite.rel.rules.FilterJoinRule;
+import org.apache.calcite.rel.rules.ReduceExpressionsRule;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.schema.Schema;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.sql.*;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.parser.SqlParseException;
+import org.apache.calcite.sql.parser.SqlParser;
+import org.apache.calcite.sql.validate.SqlValidatorImpl;
+import org.apache.calcite.sql2rel.SqlToRelConverter;
+import org.apache.calcite.tools.*;
+import org.apache.calcite.util.Pair;
+import org.apache.iotdb.db.calcite.*;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
 import org.apache.iotdb.db.exception.metadata.MetadataException;
+import org.apache.iotdb.db.exception.path.PathException;
 import org.apache.iotdb.db.exception.query.IllegalASTFormatException;
 import org.apache.iotdb.db.exception.query.LogicalOperatorException;
 import org.apache.iotdb.db.exception.query.LogicalOptimizeException;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
+import org.apache.iotdb.db.metadata.MManager;
 import org.apache.iotdb.db.qp.executor.IQueryProcessExecutor;
 import org.apache.iotdb.db.qp.logical.Operator;
 import org.apache.iotdb.db.qp.logical.RootOperator;
 import org.apache.iotdb.db.qp.logical.crud.FilterOperator;
 import org.apache.iotdb.db.qp.logical.crud.SFWOperator;
 import org.apache.iotdb.db.qp.physical.PhysicalPlan;
+import org.apache.iotdb.db.qp.physical.crud.QueryPlan;
 import org.apache.iotdb.db.qp.strategy.LogicalGenerator;
 import org.apache.iotdb.db.qp.strategy.PhysicalGenerator;
 import org.apache.iotdb.db.qp.strategy.optimizer.ConcatPathOptimizer;
@@ -42,6 +87,18 @@ import org.apache.iotdb.db.sql.ParseGenerator;
 import org.apache.iotdb.db.sql.parse.AstNode;
 import org.apache.iotdb.db.sql.parse.ParseException;
 import org.apache.iotdb.db.sql.parse.ParseUtils;
+import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
+import org.apache.iotdb.tsfile.read.common.Path;
+import org.apache.iotdb.tsfile.read.expression.IBinaryExpression;
+import org.apache.iotdb.tsfile.read.expression.IExpression;
+import org.apache.iotdb.tsfile.read.expression.impl.BinaryExpression;
+import org.apache.iotdb.tsfile.read.expression.impl.GlobalTimeExpression;
+import org.apache.iotdb.tsfile.read.expression.impl.SingleSeriesExpression;
+import org.apache.iotdb.tsfile.read.filter.TimeFilter;
+import org.apache.iotdb.tsfile.read.filter.basic.Filter;
+import sun.plugin.dom.exception.PluginNotSupportedException;
+
+import javax.management.Query;
 
 /**
  * provide a integration method for other user.
@@ -71,6 +128,87 @@ public class QueryProcessor {
     operator = logicalOptimize(operator, executor);
     PhysicalGenerator physicalGenerator = new PhysicalGenerator(executor);
     return physicalGenerator.transformToPhysicalPlan(operator);
+  }
+
+  public QueryPlan parseSQLToPhysicalPlanThroughCalcite(String sqlStr)
+          throws ValidationException, SqlParseException, RelConversionException {
+    SchemaPlus parentSchema = Frameworks.createRootSchema(true);
+
+    final List<RelTraitDef> traitDefs = new ArrayList<>();
+    traitDefs.add(ConventionTraitDef.INSTANCE);
+    traitDefs.add(RelCollationTraitDef.INSTANCE);
+
+    FrameworkConfig config = Frameworks.newConfigBuilder()
+            .parserConfig(SqlParser.configBuilder()
+              .setCaseSensitive(false)
+              .setQuotedCasing(Casing.UNCHANGED)
+              .setUnquotedCasing(Casing.UNCHANGED)
+              .build())
+            .defaultSchema(parentSchema.add("IoTDBSchema", new IoTDBSchema("IoTDBSchema")))
+            .programs(Programs.ofRules(Programs.RULE_SET))
+            .traitDefs(traitDefs)
+            .build();
+
+    Planner planner = Frameworks.getPlanner(config);
+    SqlNode parser = planner.parse(sqlStr);
+    SqlNode validate = planner.validate(parser);
+    RelRoot relRoot = planner.rel(validate);
+    RelNode relNode = relRoot.project();
+
+    // relNode = planner.transform(0, relNode.getTraitSet(), relNode);
+
+    HepProgramBuilder hepProgramBuilder = new HepProgramBuilder();
+    hepProgramBuilder.addRuleInstance(IoTDBRules.RULES[0]);
+    hepProgramBuilder.addRuleInstance(IoTDBRules.RULES[1]);
+    hepProgramBuilder.addRuleInstance(ReduceExpressionsRule.PROJECT_INSTANCE);
+    hepProgramBuilder.addRuleInstance(ReduceExpressionsRule.FILTER_INSTANCE);
+    HepPlanner hepPlanner = new HepPlanner(hepProgramBuilder.build());
+    hepPlanner.setRoot(relNode);
+    relNode = hepPlanner.findBestExp();
+
+    System.out.println("---------------------------After HepPlanner: ");
+    System.out.println(RelOptUtil.toString(relNode));
+
+/*    VolcanoPlanner volcanoPlanner = (VolcanoPlanner) relNode.getCluster().getPlanner();
+    RelTraitSet desiredTraits = relNode.getCluster().traitSet().replace(IoTDBRel.CONVENTION);
+    relNode = volcanoPlanner.changeTraits(relNode, desiredTraits);
+    volcanoPlanner.setRoot(relNode);
+    relNode = volcanoPlanner.findBestExp();
+
+    System.out.println("---------------------------The best relational expression is: ");
+    System.out.println(RelOptUtil.toString(relNode));*/
+    planner.close();
+    QueryPlan plan = new QueryPlan();
+    plan = convertCalcitePlan(relNode, plan);
+    return plan;
+  }
+
+  private QueryPlan convertCalcitePlan(RelNode relNode, QueryPlan plan) {
+    if(relNode instanceof IoTDBProject){
+      List<Path> paths = ((IoTDBProject) relNode).getPaths();
+      List<TSDataType> dataTypes = ((IoTDBProject) relNode).getDataTypes();
+      if(plan.getPaths() == null){
+        plan.setPaths(paths);
+      } else {
+        plan.getPaths().addAll(paths);
+      }
+      if(plan.getDataTypes() == null){
+        plan.setDataTypes(dataTypes);
+      } else {
+        plan.getDataTypes().addAll(dataTypes);
+      }
+    } else if(relNode instanceof IoTDBFilter){
+      IExpression iExpression = ((IoTDBFilter) relNode).getIExpression();
+      plan.setExpression(iExpression);
+    }
+
+    Iterator<RelNode> iter = relNode.getInputs().iterator();
+    while(iter.hasNext()){
+      RelNode input = iter.next();
+      plan = convertCalcitePlan(input, plan);
+    }
+
+    return plan;
   }
 
   /**

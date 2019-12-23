@@ -29,21 +29,25 @@ import static org.apache.iotdb.db.conf.IoTDBConstant.VALUE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
+
+import com.sun.istack.FinalArrayList;
+import jdk.nashorn.internal.ir.JumpToInlinedFinally;
+import org.apache.calcite.jdbc.CalciteConnection;
+import org.apache.calcite.schema.Schema;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.sql.parser.SqlParseException;
+import org.apache.calcite.sql.util.SqlString;
+import org.apache.calcite.tools.RelConversionException;
+import org.apache.calcite.tools.ValidationException;
 import org.apache.iotdb.db.auth.AuthException;
 import org.apache.iotdb.db.auth.AuthorityChecker;
 import org.apache.iotdb.db.auth.authorizer.IAuthorizer;
 import org.apache.iotdb.db.auth.authorizer.LocalFileAuthorizer;
+import org.apache.iotdb.db.calcite.IoTDBSchema;
+import org.apache.iotdb.db.calcite.IoTDBSchemaFactory;
 import org.apache.iotdb.db.conf.IoTDBConfig;
 import org.apache.iotdb.db.conf.IoTDBConstant;
 import org.apache.iotdb.db.conf.IoTDBDescriptor;
@@ -589,7 +593,6 @@ public class TSServiceImpl implements TSIService.Iface, ServerContext {
     return true;
   }
 
-
   @Override
   public TSExecuteStatementResp executeStatement(TSExecuteStatementReq req) {
     long startTime = System.currentTimeMillis();
@@ -608,7 +611,10 @@ public class TSServiceImpl implements TSIService.Iface, ServerContext {
       }
 
       PhysicalPlan physicalPlan;
+
       physicalPlan = processor.parseSQLToPhysicalPlan(statement, zoneIds.get());
+      // convertCalcitePlan
+      // physicalPlan = processor.parseSQLToPhysicalPlanThroughCalcite(statement);
       if (physicalPlan.isQuery()) {
         resp = executeQueryStatement(req.statementId, physicalPlan);
         long endTime = System.currentTimeMillis();
@@ -635,7 +641,18 @@ public class TSServiceImpl implements TSIService.Iface, ServerContext {
       logger.info("meet error while parsing SQL to physical plan: {}", e.getMessage());
       return getTSExecuteStatementResp(getStatus(TSStatusCode.READ_ONLY_SYSTEM_ERROR,
           e.getMessage()));
-    }
+    } /*catch (RelConversionException e) {
+      e.printStackTrace();
+      return null;
+    } catch (ValidationException e) {
+      e.printStackTrace();
+      return null;
+    } catch (SqlParseException e) {
+      logger.info("meet error while parsing relational SQL: {}", e.getMessage());
+      return getTSExecuteStatementResp(getStatus(TSStatusCode.READ_ONLY_SYSTEM_ERROR,
+              e.getMessage()));
+    }*/
+
   }
 
   private TSExecuteStatementResp executeQueryStatement(long statementId, PhysicalPlan plan) {
@@ -801,6 +818,16 @@ public class TSServiceImpl implements TSIService.Iface, ServerContext {
     resp.setColumns(columnsName);
     resp.setDataTypeList(columnsType);
     return resp;
+  }
+
+  public TSExecuteStatementResp executeCalciteQuery(PhysicalPlan plan) {
+    try{
+      return executeDataQuery(plan);
+    } catch (Exception e){
+      logger.error("{}: Internal server error: ", IoTDBConstant.GLOBAL_DB_NAME, e);
+      return getTSExecuteStatementResp(
+              getStatus(TSStatusCode.INTERNAL_SERVER_ERROR, e.getMessage()));
+    }
   }
 
   private TSExecuteStatementResp executeDataQuery(PhysicalPlan plan)
