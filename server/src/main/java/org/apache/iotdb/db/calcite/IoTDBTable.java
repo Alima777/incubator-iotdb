@@ -30,20 +30,21 @@ import org.apache.iotdb.rpc.TSStatusCode;
 import org.apache.iotdb.service.rpc.thrift.TSExecuteStatementResp;
 import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.common.Path;
+import org.apache.iotdb.tsfile.read.expression.IExpression;
 import org.apache.thrift.TException;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
-public class IoTDBTable extends AbstractTable
+public class IoTDBTable extends AbstractQueryableTable
     implements TranslatableTable {
   RelProtoDataType protoRowType;
   private final IoTDBSchema schema;
   private final String storageGroup;
 
   public IoTDBTable(IoTDBSchema schema, String storageGroup){
-    super();
+    super(Object[].class);
     this.schema = schema;
     this.storageGroup = storageGroup;
   }
@@ -54,24 +55,34 @@ public class IoTDBTable extends AbstractTable
   public RelDataType getRowType(RelDataTypeFactory typeFactory) {
     try{
       if (protoRowType == null) {
-        protoRowType = schema.getRelDataType(storageGroup);
+          protoRowType = schema.getRelDataType(storageGroup);
       }
-      return protoRowType.apply(typeFactory);
-    } catch (Exception e){
-      e.printStackTrace();
-      return null;
     }
+    catch (SQLException | PathException e) {
+      e.printStackTrace();
+    }
+    return protoRowType.apply(typeFactory);
   }
-/*
-  public Enumerable<Object> query() {
-    return query(ImmutableList.of());
+
+  @Override
+  public <T> Queryable<T> asQueryable(QueryProvider queryProvider, SchemaPlus schema, String tableName) {
+    return new IoTDBQueryable<>(queryProvider, schema, this, storageGroup);
   }
-  *//** Executes a IoTDB physical plan.
+
+  @Override
+  public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
+    final RelOptCluster cluster = context.getCluster();
+    return new IoTDBTableScan(cluster, cluster.traitSetOf(IoTDBRel.CONVENTION),
+            relOptTable, this, null);
+  }
+
+
+  /** Executes a IoTDB physical plan.
    *
    * @param paths List of fields to project
    * @return Enumerator of results
-   *//*
-  public Enumerable<Object> query(List<Path> paths){
+   */
+  public Enumerable<Object> query(List<Path> paths, List<TSDataType> dataTypes, IExpression iExpression){
     QueryPlan physicalPlan = new QueryPlan();
     physicalPlan.setPaths(paths);
 
@@ -85,22 +96,10 @@ public class IoTDBTable extends AbstractTable
     };
   }
 
-  @Override
-  public <T> Queryable<T> asQueryable(QueryProvider queryProvider, SchemaPlus schema, String tableName) {
-    return new IoTDBQueryable<>(queryProvider, schema, this, storageGroup);
-  }*/
-
-  @Override
-  public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable relOptTable) {
-    final RelOptCluster cluster = context.getCluster();
-    return new IoTDBTableScan(cluster, cluster.traitSetOf(IoTDBRel.CONVENTION),
-            relOptTable, this, null);
-  }
-/*
-  *//** Implementation of {@link org.apache.calcite.linq4j.Queryable}
+  /** Implementation of {@link org.apache.calcite.linq4j.Queryable}
    *
    * @param <T> element type
-   *//*
+   */
   public static class IoTDBQueryable<T> extends AbstractTableQueryable<T> {
     public IoTDBQueryable(QueryProvider queryProvider, SchemaPlus schema,
                               IoTDBTable table, String tableName) {
@@ -109,7 +108,8 @@ public class IoTDBTable extends AbstractTable
 
     public Enumerator<T> enumerator() {
       //noinspection unchecked
-      final Enumerable<T> enumerable = (Enumerable<T>) getTable().query();
+      final Enumerable<T> enumerable =
+              (Enumerable<T>) getTable().query(null,null,null);
       return enumerable.enumerator();
     }
 
@@ -117,13 +117,15 @@ public class IoTDBTable extends AbstractTable
       return (IoTDBTable) table;
     }
 
-    *//** Called via code-generation.
+    /** Called via code-generation.
      *
-     *  org.apache.calcite.adapter.cassandra.CassandraMethod#CASSANDRA_QUERYABLE_QUERY
-     *//*
+     */
+
     @SuppressWarnings("UnusedDeclaration")
-    public Enumerable<Object> query(List<Path> paths) {
-      return getTable().query(paths);
+    public Enumerable<Object> query(List<Map.Entry<String, Class>> fields,
+        List<Map.Entry<String, String>> selectFields, List<String> predicates) {
+      // return getTable().query();
+      return null;
     }
-  }*/
+  }
 }

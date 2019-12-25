@@ -108,4 +108,5 @@ public class IoTDBSchema extends AbstractSchema {
     return builder.build();
   }
 }
+
 // End IoTDBSchema.java

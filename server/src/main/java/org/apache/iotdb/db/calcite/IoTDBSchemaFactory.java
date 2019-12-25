@@ -32,4 +32,5 @@ public class IoTDBSchemaFactory implements SchemaFactory {
     return new IoTDBSchema(name);
   }
 }
+
 // End IoTDBSchemaFactory.java

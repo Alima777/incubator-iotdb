@@ -45,7 +45,7 @@ public class IoTDBTableScan extends TableScan implements IoTDBRel {
   }
 
   @Override public void register(RelOptPlanner planner) {
-    // planner.addRule(IoTDBToEnumerableConverterRule.INSTANCE);
+    planner.addRule(IoTDBToEnumerableConverterRule.INSTANCE);
     for (RelOptRule rule : IoTDBRules.RULES) {
       planner.addRule(rule);
     }

@@ -111,6 +111,8 @@ public class IoTDBProject extends Project implements IoTDBRel {
 
   public void implement(Implementor implementor) {
     implementor.visitChild(0, getInput());
+    implementor.addPaths(paths);
+    implementor.addDataTypes(dataTypes);
   }
 }
 

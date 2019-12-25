@@ -9,6 +9,10 @@ import org.apache.calcite.tools.RelBuilderFactory;
 
 import java.util.function.Predicate;
 
+/**
+ * Rule to convert a relational expression from
+ * {@link IoTDBRel#CONVENTION} to {@link EnumerableConvention}.
+ */
 public class IoTDBToEnumerableConverterRule extends ConverterRule {
   public static final ConverterRule INSTANCE =
           new IoTDBToEnumerableConverterRule(RelFactories.LOGICAL_BUILDER);
@@ -30,3 +34,5 @@ public class IoTDBToEnumerableConverterRule extends ConverterRule {
     return new IoTDBToEnumerableConverter(rel.getCluster(), newTraitSet, rel);
   }
 }
+
+// End IoTDBToEnumerableConverterRule.java

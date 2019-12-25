@@ -3,12 +3,11 @@ package org.apache.iotdb.db.calcite;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
+import org.apache.iotdb.tsfile.file.metadata.enums.TSDataType;
 import org.apache.iotdb.tsfile.read.common.Path;
+import org.apache.iotdb.tsfile.read.expression.IExpression;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public interface IoTDBRel extends RelNode {
   void implement(Implementor implementor);
@@ -20,18 +19,25 @@ public interface IoTDBRel extends RelNode {
    * {@link IoTDBRel} nodes into a IoTDB Physical Plan. */
   class Implementor {
     final List<Path> paths = new ArrayList<>();
+    final List<TSDataType> dataTypes = new ArrayList<>();
+    IExpression iExpression = null;
 
     RelOptTable table;
     IoTDBTable ioTDBTable;
 
-    /** Adds newly paths.
-     *
-     * @param paths New fields to be projected from a query
-     */
-    public void add(List<Path> paths) {
-      if (paths != null) {
-        this.paths.addAll(paths);
-      }
+    public void addPaths(List<Path> paths) {
+      Objects.requireNonNull(paths, "paths");
+      paths.addAll(paths);
+    }
+
+    public void addDataTypes(List<TSDataType> dataTypes) {
+      Objects.requireNonNull(dataTypes, "datatypes");
+      dataTypes.addAll(dataTypes);
+    }
+
+    public void addIExpression(IExpression iExpression) {
+      Objects.requireNonNull(dataTypes, "datatypes");
+      iExpression = iExpression;
     }
 
     public void visitChild(int ordinal, RelNode input) {

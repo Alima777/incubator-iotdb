@@ -12,10 +12,12 @@ import org.apache.calcite.rel.core.RelFactories;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.validate.SqlValidatorUtil;
 import org.apache.calcite.util.Pair;
 import org.apache.iotdb.rpc.IoTDBRPCException;
 import org.apache.iotdb.tsfile.read.common.Path;
@@ -38,6 +40,10 @@ public class IoTDBRules {
       IoTDBProjectRule.INSTANCE
   };
 
+  static List<String> IoTDBFieldNames(final RelDataType rowType) {
+    return SqlValidatorUtil.uniquify(rowType.getFieldNames(),
+            SqlValidatorUtil.EXPR_SUGGESTER, true);
+  }
   /** Base class for planner rules that convert a relational expression to
    * IoTDB calling convention. */
   abstract static class IoTDBConverterRule extends ConverterRule {
