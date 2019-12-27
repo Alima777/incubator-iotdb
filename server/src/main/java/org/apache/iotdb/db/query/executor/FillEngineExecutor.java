@@ -24,11 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.iotdb.db.exception.StorageEngineException;
-import org.apache.iotdb.db.exception.path.PathException;
 import org.apache.iotdb.db.exception.query.QueryProcessException;
 import org.apache.iotdb.db.metadata.MManager;
 import org.apache.iotdb.db.query.context.QueryContext;
-import org.apache.iotdb.db.query.dataset.EngineDataSetWithoutValueFilter;
+import org.apache.iotdb.db.query.dataset.OldEngineDataSetWithoutValueFilter;
 import org.apache.iotdb.db.query.fill.IFill;
 import org.apache.iotdb.db.query.fill.PreviousFill;
 import org.apache.iotdb.db.query.reader.IPointReader;
@@ -38,14 +37,12 @@ import org.apache.iotdb.tsfile.read.query.dataset.QueryDataSet;
 
 public class FillEngineExecutor {
 
-  private long jobId;
   private List<Path> selectedSeries;
   private long queryTime;
   private Map<TSDataType, IFill> typeIFillMap;
 
-  public FillEngineExecutor(long jobId, List<Path> selectedSeries, long queryTime,
+  public FillEngineExecutor(List<Path> selectedSeries, long queryTime,
       Map<TSDataType, IFill> typeIFillMap) {
-    this.jobId = jobId;
     this.selectedSeries = selectedSeries;
     this.queryTime = queryTime;
     this.typeIFillMap = typeIFillMap;
@@ -80,6 +77,6 @@ public class FillEngineExecutor {
       readers.add(fill.getFillResult());
     }
 
-    return new EngineDataSetWithoutValueFilter(selectedSeries, dataTypeList, readers);
+    return new OldEngineDataSetWithoutValueFilter(selectedSeries, dataTypeList, readers);
   }
 }
