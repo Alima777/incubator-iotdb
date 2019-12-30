@@ -97,7 +97,7 @@ public class QueryProcessor {
   }
 
   public QueryPlan parseSQLToPhysicalPlanThroughCalcite(String sqlStr)
-          throws ValidationException, SqlParseException, RelConversionException {
+          throws SqlParseException, RelConversionException, ValidationException {
     SchemaPlus parentSchema = Frameworks.createRootSchema(true);
 
     final List<RelTraitDef> traitDefs = new ArrayList<>();
