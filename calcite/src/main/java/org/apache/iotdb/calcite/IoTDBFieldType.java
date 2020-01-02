@@ -1,44 +1,37 @@
 package org.apache.iotdb.calcite;
 
-import org.apache.calcite.adapter.java.JavaTypeFactory;
-import org.apache.calcite.rel.type.RelDataType;
-
+import org.apache.calcite.sql.type.SqlTypeName;
 import java.util.HashMap;
 import java.util.Map;
 
 enum IoTDBFieldType {
-  STRING(String.class, "TEXT"),
-  BOOLEAN(Boolean.class, "BOOLEAN"),
-  INT32(Integer.class, "INT32"),
-  INT64(Long.class, "INT64"),
-  FLOAT(Float.class, "FLOAT"),
-  DOUBLE(Double.class, "DOUBLE"),
-  TIMESTAMP(Long.class, "timestamp");
+  TEXT(SqlTypeName.VARCHAR, "TEXT"),
+  BOOLEAN(SqlTypeName.BOOLEAN, "BOOLEAN"),
+  INT32(SqlTypeName.INTEGER, "INT32"),
+  INT64(SqlTypeName.BIGINT, "INT64"),
+  // this must be real
+  FLOAT(SqlTypeName.REAL, "FLOAT"),
+  DOUBLE(SqlTypeName.DOUBLE, "DOUBLE");
 
-  private final Class clazz;
-  private final String simpleName;
+  private final SqlTypeName sqlType;
+  private final String TSDataType;
+
+  IoTDBFieldType(SqlTypeName sqlTypeName, String TSDataTypeName) {
+    this.sqlType = sqlTypeName;
+    this.TSDataType = TSDataTypeName;
+  }
 
   private static final Map<String, IoTDBFieldType> MAP = new HashMap<>();
 
   static {
     for (IoTDBFieldType value : values()) {
-      MAP.put(value.simpleName, value);
+      MAP.put(value.TSDataType, value);
     }
   }
 
-  IoTDBFieldType(Class clazz, String simpleName) {
-    this.clazz = clazz;
-    this.simpleName = simpleName;
-  }
-
-  public RelDataType toType(JavaTypeFactory typeFactory) {
-    RelDataType javaType = typeFactory.createJavaType(clazz);
-    RelDataType sqlType = typeFactory.createSqlType(javaType.getSqlTypeName());
-    return typeFactory.createTypeWithNullability(sqlType, true);
-  }
+  public SqlTypeName getSqlType() { return this.sqlType; }
 
   public static IoTDBFieldType of(String typeString) {
     return MAP.get(typeString);
   }
-
 }

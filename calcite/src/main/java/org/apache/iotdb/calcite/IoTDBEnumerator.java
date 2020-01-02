@@ -20,7 +20,7 @@ public class IoTDBEnumerator implements Enumerator<Object> {
   private Row current;
   private List<RelDataTypeField> fieldTypes;
 
-  /** Creates a CassandraEnumerator.
+  /** Creates a IoTDBEnumerator.
    *
    * @param results IoTDB result set
    * @param protoRowType The type of resulting rows
@@ -34,7 +34,7 @@ public class IoTDBEnumerator implements Enumerator<Object> {
     this.fieldTypes = protoRowType.apply(typeFactory).getFieldList();
   }
 
-  /** Produce the next row from the results
+  /** Produce and get the next row from the results
    *
    * @return A new row from the results
    */
@@ -67,7 +67,7 @@ public class IoTDBEnumerator implements Enumerator<Object> {
       return resultSet.getLong(index);
     } else if (type == SqlTypeName.DOUBLE) {
       return resultSet.getDouble(index);
-    } else if (type == SqlTypeName.FLOAT) {
+    } else if (type == SqlTypeName.REAL) {
       return resultSet.getFloat(index);
     } else if (type == SqlTypeName.BOOLEAN){
       return resultSet.getBoolean(index);
@@ -75,6 +75,11 @@ public class IoTDBEnumerator implements Enumerator<Object> {
       return null;
     }
   }
+
+  /**
+   * Advances the enumerator to the next element of the collection.
+   * @return whether the resultset has next element
+   */
   @Override
   public boolean moveNext() {
     try {
@@ -87,10 +92,23 @@ public class IoTDBEnumerator implements Enumerator<Object> {
     return false;
   }
 
+  /**
+   * Sets the enumerator to its initial position, which is before the first element in the collection.
+   */
   @Override
   public void reset() { throw new UnsupportedOperationException(); }
 
+  /**
+   *  Closes this enumerable and releases resources.
+   */
   @Override
   public void close() {
+    try {
+      resultSet.close();
+    } catch (SQLException e) {
+      e.printStackTrace();
+    }
   }
 }
+
+// End IoTDBEnumerator.java

@@ -1,6 +1,7 @@
 package org.apache.iotdb.calcite;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeImpl;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
@@ -50,8 +51,8 @@ public class IoTDBSchema extends AbstractSchema {
             new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
     final RelDataTypeFactory.Builder fieldInfo = typeFactory.builder();
     // add time, device columns in relational table
-    fieldInfo.add(IoTDBConstant.TimeColumn, typeFactory.createSqlType(toType(TSDataType.INT64)));
-    fieldInfo.add(IoTDBConstant.DeviceColumn, typeFactory.createSqlType(toType(TSDataType.TEXT)));
+    fieldInfo.add(IoTDBConstant.TimeColumn, typeFactory.createSqlType(IoTDBFieldType.INT64.getSqlType()));
+    fieldInfo.add(IoTDBConstant.DeviceColumn, typeFactory.createSqlType(IoTDBFieldType.TEXT.getSqlType()));
 
     // get one device in this storage group
     Statement statement = connection.createStatement();
@@ -65,10 +66,9 @@ public class IoTDBSchema extends AbstractSchema {
       ResultSet timeseries = statement.getResultSet();
       while (timeseries.next()) {
         String sensorName = timeseries.getString(1);
-        String sensorType = timeseries.getString(3);
-        IoTDBFieldType dataType = IoTDBFieldType.of(sensorType);
+        IoTDBFieldType sensorType = IoTDBFieldType.of(timeseries.getString(3));
         int index = sensorName.lastIndexOf('.');
-        fieldInfo.add(sensorName.substring(index + 1), typeFactory.createSqlType(SqlTypeName.get(sensorType)));
+        fieldInfo.add(sensorName.substring(index + 1), typeFactory.createSqlType(sensorType.getSqlType()));
       }
     }
 
@@ -79,20 +79,15 @@ public class IoTDBSchema extends AbstractSchema {
     SqlTypeName typeName = SqlTypeName.ANY;
     if(tsDataType == TSDataType.INT32){
       typeName = SqlTypeName.INTEGER;
-    }
-    else if(tsDataType == TSDataType.INT64){
+    } else if(tsDataType == TSDataType.INT64){
       typeName = SqlTypeName.BIGINT;
-    }
-    else if(tsDataType == TSDataType.FLOAT){
+    } else if(tsDataType == TSDataType.FLOAT){
       typeName = SqlTypeName.FLOAT;
-    }
-    else if(tsDataType == TSDataType.DOUBLE){
+    } else if(tsDataType == TSDataType.DOUBLE){
       typeName = SqlTypeName.DOUBLE;
-    }
-    else if(tsDataType == TSDataType.BOOLEAN){
+    } else if(tsDataType == TSDataType.BOOLEAN){
       typeName = SqlTypeName.BOOLEAN;
-    }
-    else if(tsDataType == TSDataType.TEXT){
+    } else if(tsDataType == TSDataType.TEXT){
       typeName = SqlTypeName.VARCHAR;
     }
 

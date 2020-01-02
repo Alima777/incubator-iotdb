@@ -31,5 +31,5 @@ public enum IoTDBMethod {
   }
 }
 
-// End CassandraMethod.java
+// End IoTDBMethod.java
 

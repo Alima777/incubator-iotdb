@@ -17,8 +17,8 @@ public interface IoTDBRel extends RelNode {
   class Implementor {
     final Map<String, String> selectFields = new LinkedHashMap<>();
     final List<String> whereClause = new ArrayList<>();
+    int limit = 0;
     int offset = 0;
-    int fetch = -1;
 
     RelOptTable table;
     IoTDBTable ioTDBTable;

@@ -63,7 +63,7 @@ public class IoTDBTable extends AbstractQueryableTable
 
   public Enumerable<Object> query(final Connection connection) {
     return query(connection, ImmutableList.of(), ImmutableList.of(),
-            ImmutableList.of(),  0, -1);
+            ImmutableList.of(),  0, 0);
   }
 
   /** Executes a IoTDB SQL query.
@@ -75,7 +75,7 @@ public class IoTDBTable extends AbstractQueryableTable
    */
   public Enumerable<Object> query(final Connection connection, List<Map.Entry<String, Class>> fields,
         final List<Map.Entry<String, String>> selectFields, List<String> predicates,
-        final Integer offset, final Integer fetch){
+        final Integer limit, final Integer offset){
     // Build the type of the resulting row based on the provided fields
     final RelDataTypeFactory typeFactory =
             new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
@@ -128,6 +128,15 @@ public class IoTDBTable extends AbstractQueryableTable
     queryBuilder.append(selectString);
     queryBuilder.append(" FROM " + storageGroup);
     queryBuilder.append(whereClause);
+
+    if(limit > 0) {
+      queryBuilder.append(" LIMIT " + limit);
+    }
+    if (offset > 0){
+      queryBuilder.append(" OFFSET " + offset);
+    }
+
+    // append group by device
     queryBuilder.append(IoTDBConstant.GroupByDevice);
     final String query = queryBuilder.toString();
 
@@ -171,15 +180,15 @@ public class IoTDBTable extends AbstractQueryableTable
     private Connection getConnection() {
       return schema.unwrap(IoTDBSchema.class).connection;
     }
-    /** Called via code-generation.
-     *
-     */
 
+    /**
+     * Called via code-generation.
+     */
     @SuppressWarnings("UnusedDeclaration")
     public Enumerable<Object> query(List<Map.Entry<String, Class>> fields,
         List<Map.Entry<String, String>> selectFields, List<String> predicates,
-                                    Integer offset, Integer fetch) {
-      return getTable().query(getConnection(), fields, selectFields, predicates, offset, fetch);
+                                    Integer limit, Integer offset) {
+      return getTable().query(getConnection(), fields, selectFields, predicates, limit, offset);
     }
   }
 }
