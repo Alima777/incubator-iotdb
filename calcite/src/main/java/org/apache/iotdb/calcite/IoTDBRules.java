@@ -128,11 +128,8 @@ public class IoTDBRules {
     public RelNode convert(RelNode rel) {
       final LogicalProject project = (LogicalProject) rel;
       final RelTraitSet traitSet = project.getTraitSet().replace(out);
-/*      return new IoTDBProject(project.getCluster(), traitSet,
-              convert(project.getInput(), out), project.getProjects(),
-              project.getRowType(), project.getNamedProjects());*/
       return new IoTDBProject(project.getCluster(), traitSet,
-              project.getInput(), project.getProjects(),
+              convert(project.getInput(), out), project.getProjects(),
               project.getRowType(), project.getNamedProjects());
     }
 
