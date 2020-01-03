@@ -40,17 +40,22 @@ public class IoTDBEnumerator implements Enumerator<Object> {
    */
   @Override
   public Object current() {
-    try {
+
       // Build an array with all fields in this row
       Object[] row = new Object[fieldTypes.size()];
       for (int i = 0; i < fieldTypes.size(); i++) {
-        row[i] = currentRowField(i + 1, fieldTypes.get(i).getType().getSqlTypeName());
+        try {
+          row[i] = currentRowField(i + 1, fieldTypes.get(i).getType().getSqlTypeName());
+        } catch (SQLException e) {
+         if(e.getMessage().endsWith("NULL.")){
+           row[i] = null;
+         } else {
+           e.printStackTrace();
+           return null;
+         }
+        }
       }
       return row;
-    } catch (SQLException e) {
-      e.printStackTrace();
-    }
-    return null;
   }
 
   /** Get a field for the current row from the underlying object.

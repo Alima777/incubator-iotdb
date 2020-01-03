@@ -61,7 +61,7 @@ public class IoTDBSchema extends AbstractSchema {
       ResultSet resultSet = statement.getResultSet();
     }*/
 
-    boolean hasResultSet = statement.execute("show timeseries root.ln.d1");
+    boolean hasResultSet = statement.execute("show timeseries root.vehicle.d0");
     if(hasResultSet){
       ResultSet timeseries = statement.getResultSet();
       while (timeseries.next()) {
