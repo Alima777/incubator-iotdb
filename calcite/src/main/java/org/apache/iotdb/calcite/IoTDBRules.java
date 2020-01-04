@@ -1,5 +1,6 @@
 package org.apache.iotdb.calcite;
 
+import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -13,8 +14,11 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexVisitorImpl;
 import org.apache.calcite.sql.validate.SqlValidatorUtil;
+import sun.security.util.ObjectIdentifier;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -34,6 +38,25 @@ public class IoTDBRules {
     return SqlValidatorUtil.uniquify(rowType.getFieldNames(),
             SqlValidatorUtil.EXPR_SUGGESTER, true);
   }
+
+  /** Translator from {@link RexNode} to strings in IoTDB's expression
+   * language. */
+  static class RexToIoTDBTranslator extends RexVisitorImpl<String> {
+    private final JavaTypeFactory typeFactory;
+    private final List<String> inFields;
+
+    protected RexToIoTDBTranslator(JavaTypeFactory typeFactory,
+                                       List<String> inFields) {
+      super(true);
+      this.typeFactory = typeFactory;
+      this.inFields = inFields;
+    }
+
+    @Override public String visitInputRef(RexInputRef inputRef) {
+      return inFields.get(inputRef.getIndex());
+    }
+  }
+
   /** Base class for planner rules that convert a relational expression to
    * IoTDB calling convention. */
   abstract static class IoTDBConverterRule extends ConverterRule {
@@ -110,7 +133,6 @@ public class IoTDBRules {
    */
   private static class IoTDBProjectRule extends IoTDBConverterRule {
     private static final IoTDBProjectRule INSTANCE = new IoTDBProjectRule();
-
     private IoTDBProjectRule() {
       super(LogicalProject.class, "IoTDBProjectRule");
     }
@@ -130,7 +152,7 @@ public class IoTDBRules {
       final RelTraitSet traitSet = project.getTraitSet().replace(out);
       return new IoTDBProject(project.getCluster(), traitSet,
               convert(project.getInput(), out), project.getProjects(),
-              project.getRowType(), project.getNamedProjects());
+              project.getRowType());
     }
 
   }

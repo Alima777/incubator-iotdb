@@ -1,6 +1,7 @@
 package org.apache.iotdb.calcite;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.calcite.test.CalciteAssert;
 import org.apache.calcite.util.Sources;
 import org.apache.calcite.util.Util;
 import org.apache.iotdb.calcite.utils.EnvironmentUtils;
@@ -120,67 +121,53 @@ public class IoTDBAdapterTest {
   }
 
   @Test
-  public void selectTest() throws ClassNotFoundException, SQLException {
-    String[] retArray = new String[]{
-            "1,root.vehicle.d0,101,1101,null,null,null,",
-            "2,root.vehicle.d0,10000,40000,2.22,null,null,",
-            "3,root.vehicle.d0,null,null,3.33,null,null,",
-            "4,root.vehicle.d0,null,null,4.44,null,null,",
-            "50,root.vehicle.d0,10000,50000,null,null,null,",
-            "60,root.vehicle.d0,null,null,null,aaaaa,null,",
-            "70,root.vehicle.d0,null,null,null,bbbbb,null,",
-            "80,root.vehicle.d0,null,null,null,ccccc,null,",
-            "100,root.vehicle.d0,99,199,null,null,true,",
-            "101,root.vehicle.d0,99,199,null,ddddd,null,",
-            "102,root.vehicle.d0,80,180,10.0,fffff,null,",
-            "103,root.vehicle.d0,99,199,null,null,null,",
-            "104,root.vehicle.d0,90,190,null,null,null,",
-            "105,root.vehicle.d0,99,199,11.11,null,null,",
-            "106,root.vehicle.d0,99,null,null,null,null,",
-            "1000,root.vehicle.d0,22222,55555,1000.11,null,null,",
-            "946684800000,root.vehicle.d0,null,100,null,good,null,",
-            "1,root.vehicle.d1,999,null,null,null,null,",
-            "1000,root.vehicle.d1,888,null,null,null,null,",
-    };
+  public void testSelect(){
+    CalciteAssert.that()
+            .with(MODEL)
+            .query("select * from \"root.vehicle\"")
+            .returnsCount(19)
+            .returnsStartingWith("Time=1; Device=root.vehicle.d0; s0=101; s1=1101; s2=null; s3=null; s4=null")
+            .explainContains("PLAN=IoTDBToEnumerableConverter\n" +
+                    "  IoTDBTableScan(table=[[IoTDBSchema, root.vehicle]])");
+  }
 
-    Class.forName("org.apache.calcite.jdbc.Driver");
-    try (Connection connection = DriverManager
-            .getConnection("jdbc:calcite:model=" + MODEL_STRING);
-         Statement statement = connection.createStatement()) {
-      boolean hasResultSet = statement.execute(
-              "select * from \"root.vehicle\"");
-      Assert.assertTrue(hasResultSet);
+  /**
+   * Test project without Time and Device columns
+   */
+  @Test
+  public void testProject1() {
+    CalciteAssert.that()
+            .with(MODEL)
+            .query("select \"s0\", \"s2\" from \"root.vehicle\"")
+            .returnsStartingWith("s0=101; s2=null")
+            .explainContains("PLAN=IoTDBToEnumerableConverter\n" +
+                    "  IoTDBProject(s0=[$2], s2=[$4])\n" +
+                    "    IoTDBTableScan(table=[[IoTDBSchema, root.vehicle]])");
+  }
 
-      try (ResultSet resultSet = statement.getResultSet()) {
-        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-        StringBuilder header = new StringBuilder();
-        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-          header.append(resultSetMetaData.getColumnName(i)).append(",");
-        }
-        Assert.assertEquals("time,device,s0,s1,s2,s3,s4,", header.toString());
-        Assert.assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(1));
-        Assert.assertEquals(Types.VARCHAR, resultSetMetaData.getColumnType(2));
-        Assert.assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(3));
-        Assert.assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(4));
-        Assert.assertEquals(Types.REAL, resultSetMetaData.getColumnType(5));
-        Assert.assertEquals(Types.VARCHAR, resultSetMetaData.getColumnType(6));
-        Assert.assertEquals(Types.BOOLEAN, resultSetMetaData.getColumnType(7));
+  /**
+   * Test project with Time and Device columns
+   */
+  @Test
+  public void testProject2() {
+    CalciteAssert.that()
+            .with(MODEL)
+            .query("select \"Time\", \"Device\", \"s2\" from \"root.vehicle\"")
+            .returnsStartingWith("Time=2; Device=root.vehicle.d0; s2=2.22")
+            .explainContains("PLAN=IoTDBToEnumerableConverter\n" +
+                    "  IoTDBProject(Time=[$0], Device=[$1], s2=[$4])\n" +
+                    "    IoTDBTableScan(table=[[IoTDBSchema, root.vehicle]])");
+  }
 
-        int cnt = 0;
-        while (resultSet.next()) {
-          StringBuilder builder = new StringBuilder();
-          for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-            builder.append(resultSet.getObject(i)).append(",");
-          }
-          Assert.assertEquals(retArray[cnt], builder.toString());
-          cnt++;
-        }
-        Assert.assertEquals(19, cnt);
-      }
-    } catch (Exception e) {
-      e.printStackTrace();
-      fail(e.getMessage());
-    }
+    @Test
+    public void testProjectAlias() {
+      CalciteAssert.that()
+              .with(MODEL)
+              .query("select \"Time\" AS \"t\", \"Device\" AS \"d\", \"s2\" from \"root.vehicle\"")
+              .returnsStartingWith("t=2; d=root.vehicle.d0; s2=2.22")
+              .explainContains("PLAN=IoTDBToEnumerableConverter\n" +
+                      "  IoTDBProject(t=[$0], d=[$1], s2=[$4])\n" +
+                      "    IoTDBTableScan(table=[[IoTDBSchema, root.vehicle]])");
   }
 
 }

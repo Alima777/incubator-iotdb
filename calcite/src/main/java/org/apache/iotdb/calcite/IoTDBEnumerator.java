@@ -17,21 +17,33 @@ import java.util.List;
 
 public class IoTDBEnumerator implements Enumerator<Object> {
   private ResultSet resultSet;
+  private List<Integer> indexInResultSet = new ArrayList<>();
   private Row current;
   private List<RelDataTypeField> fieldTypes;
 
   /** Creates a IoTDBEnumerator.
    *
    * @param results IoTDB result set
-   * @param protoRowType The type of resulting rows
+   * @param protoRowType The type of protecting rows
    */
-  IoTDBEnumerator(ResultSet results, RelProtoDataType protoRowType) {
+  IoTDBEnumerator(ResultSet results, RelProtoDataType protoRowType) throws SQLException {
     this.resultSet = results;
     this.current = null;
 
     final RelDataTypeFactory typeFactory =
             new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
     this.fieldTypes = protoRowType.apply(typeFactory).getFieldList();
+
+    // get the corresponding index of project columns in result set
+    // as we have 'time' and 'device' columns in result that the project columns may don't include
+    ResultSetMetaData metaData = results.getMetaData();
+    for (int i = 0; i < metaData.getColumnCount(); i++){
+      if (i < 2 && !metaData.getColumnName(i + 1).equals(fieldTypes.get(i).getName())){
+        continue;
+      } else {
+        indexInResultSet.add(i + 1);
+      }
+    }
   }
 
   /** Produce and get the next row from the results
@@ -45,7 +57,7 @@ public class IoTDBEnumerator implements Enumerator<Object> {
       Object[] row = new Object[fieldTypes.size()];
       for (int i = 0; i < fieldTypes.size(); i++) {
         try {
-          row[i] = currentRowField(i + 1, fieldTypes.get(i).getType().getSqlTypeName());
+          row[i] = currentRowField(indexInResultSet.get(i), fieldTypes.get(i).getType().getSqlTypeName());
         } catch (SQLException e) {
          if(e.getMessage().endsWith("NULL.")){
            row[i] = null;

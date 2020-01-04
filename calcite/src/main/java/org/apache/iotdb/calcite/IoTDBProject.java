@@ -1,5 +1,6 @@
 package org.apache.iotdb.calcite;
 
+import org.apache.calcite.adapter.java.JavaTypeFactory;
 import org.apache.calcite.plan.*;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Project;
@@ -18,82 +19,18 @@ import java.util.List;
  * relational expression in IoTDB.
  */
 public class IoTDBProject extends Project implements IoTDBRel {
-  private final List<Pair<RexNode, String>> projectRows;
-  private final String storageGroup;
-  private List<Path> paths;
-  private List<TSDataType> dataTypes;
 
   public IoTDBProject(RelOptCluster cluster, RelTraitSet traitSet,
-                      RelNode input, List<? extends RexNode> projects, RelDataType rowType,
-                      List<Pair<RexNode, String>> projectRows) {
+                      RelNode input, List<? extends RexNode> projects, RelDataType rowType){
     super(cluster, traitSet, input, projects, rowType);
-
-    this.projectRows = projectRows;
-    this.storageGroup = RelOptUtil.findAllTables(this).get(0).getQualifiedName().get(1);
-
-/*    try {
-      this.paths = translatePaths(projectRows);
-      this.dataTypes = translateTypes(paths);
-    } catch (LogicalOptimizeException e) {
-      e.printStackTrace();
-    }*/
-
     assert getConvention() == IoTDBRel.CONVENTION;
     assert getConvention() == input.getConvention();
   }
 
-/*  public List<Path> getPaths(){
-    return this.paths;
-  }
-
-  public List<TSDataType> getDataTypes(){
-    return this.dataTypes;
-  }
-
-  private List<Path> translatePaths(List<Pair<RexNode, String>> projectRows) throws LogicalOptimizeException {
-    List<Path> paths = new ArrayList<>();
-
-    try{
-      for (Pair<RexNode, String> projectRow : projectRows) {
-        String measurement = projectRow.getValue().toLowerCase();
-        if(!measurement.equals("deviceid") && !measurement.equals("itime")){
-          String path = storageGroup.concat(".*." + measurement);
-          List<String> all;
-          all = mManager.getPaths(path);
-          if (all.isEmpty()) {
-            throw new LogicalOptimizeException(
-                    "Path: \"" + path + "\" doesn't correspond to any known time series");
-          }
-          for (String subPath : all) {
-            paths.add(new Path(subPath));
-          }
-        }
-      }
-      return paths;
-    } catch (MetadataException e) {
-      throw new LogicalOptimizeException("error when remove star: " + e.getMessage());
-    }
-  }
-
-  private List<TSDataType> translateTypes(List<Path> paths) throws LogicalOptimizeException {
-    // 根据 paths 从 mmanager 直接获取 TSDatatype
-    List<TSDataType> tsDataTypes = new ArrayList<>();
-    try {
-      for (Path path : paths) {
-        TSDataType dataType = null;
-        dataType = mManager.getSeriesType(path.getFullPath());
-        tsDataTypes.add(dataType);
-      }
-    } catch (PathException e) {
-      throw new LogicalOptimizeException("error when translate types: " + e.getMessage());
-    }
-    return tsDataTypes;
-  }*/
-
   @Override public Project copy(RelTraitSet traitSet, RelNode input,
                                 List<RexNode> projects, RelDataType rowType) {
     return new IoTDBProject(getCluster(), traitSet, input, projects,
-            rowType, projectRows);
+            rowType);
   }
 
   @Override public RelOptCost computeSelfCost(RelOptPlanner planner,
@@ -103,6 +40,16 @@ public class IoTDBProject extends Project implements IoTDBRel {
 
   public void implement(Implementor implementor) {
     implementor.visitChild(0, getInput());
+    final IoTDBRules.RexToIoTDBTranslator translator =
+            new IoTDBRules.RexToIoTDBTranslator(
+                    (JavaTypeFactory) getCluster().getTypeFactory(),
+                    IoTDBRules.IoTDBFieldNames(getInput().getRowType()));
+    final List<String> selectFields = new ArrayList<>();
+    for (Pair<RexNode, String> pair : getNamedProjects()) {
+      final String originalName = pair.left.accept(translator);
+      selectFields.add(originalName);
+    }
+    implementor.add(selectFields, null);
   }
 }
 

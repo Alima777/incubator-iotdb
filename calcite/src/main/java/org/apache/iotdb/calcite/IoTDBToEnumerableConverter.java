@@ -63,14 +63,10 @@ public class IoTDBToEnumerableConverter extends ConverterImpl
                                       }
                                     }),
                             Pair.class));
-    List<Map.Entry<String, String>> selectList = new ArrayList<>();
-    for (Map.Entry<String, String> entry
-            : Pair.zip(IoTDBImplementor.selectFields.keySet(),
-            IoTDBImplementor.selectFields.values())) {
-      selectList.add(entry);
-    }
+
     final Expression selectFields =
-            list.append("selectFields", constantArrayList(selectList, Pair.class));
+            list.append("selectFields",
+                    constantArrayList(IoTDBImplementor.selectFields, String.class));
     final Expression table =
             list.append("table",
                     IoTDBImplementor.table.getExpression(

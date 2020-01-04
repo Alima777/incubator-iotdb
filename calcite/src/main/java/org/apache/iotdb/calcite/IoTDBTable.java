@@ -19,6 +19,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +75,7 @@ public class IoTDBTable extends AbstractQueryableTable
    * @return Enumerator of results
    */
   public Enumerable<Object> query(final Connection connection, List<Map.Entry<String, Class>> fields,
-        final List<Map.Entry<String, String>> selectFields, List<String> predicates,
+        final List<String> selectFields, List<String> predicates,
         final Integer limit, final Integer offset){
     // Build the type of the resulting row based on the provided fields
     final RelDataTypeFactory typeFactory =
@@ -90,30 +91,50 @@ public class IoTDBTable extends AbstractQueryableTable
       return null;
     };
 
-    addField.apply(IoTDBConstant.TimeColumn);
-    addField.apply(IoTDBConstant.DeviceColumn);
     if (selectFields.isEmpty()) {
       for (Map.Entry<String, Class> field : fields) {
-        if(field.getKey() != IoTDBConstant.TimeColumn && field.getKey() != IoTDBConstant.DeviceColumn){
-          addField.apply(field.getKey());
-        }
+        addField.apply(field.getKey());
       }
     } else {
-      for (Map.Entry<String, String> field : selectFields) {
-        if(field.getKey() != IoTDBConstant.TimeColumn && field.getKey() != IoTDBConstant.DeviceColumn){
-          addField.apply(field.getKey());
-        }
+      for (String field : selectFields) {
+        addField.apply(field);
       }
     }
 
     final RelProtoDataType resultRowType = RelDataTypeImpl.proto(fieldInfo.build());
 
     // Construct the list of fields to project
-    final String selectString;
+    String selectString = "";
     if (selectFields.isEmpty()) {
       selectString = "*";
     } else {
-      selectString = "*";
+      // delete the 'Device' string in query
+      // this has to be here rather than init "selectFields" otherwise the resultRowType will be wrong
+      selectString = Util.toString(() -> {
+        final Iterator<String> selectIterator =
+                selectFields.iterator();
+
+        return new Iterator<String>() {
+          boolean cancelFlag = false;
+
+          @Override public boolean hasNext() {
+            return selectIterator.hasNext();
+          }
+
+          @Override public String next() {
+            String selectField = selectIterator.next();
+            if (!cancelFlag && selectField.equals(IoTDBConstant.DeviceColumn)){
+              selectField = selectIterator.next();
+              cancelFlag = true;
+            }
+            return selectField;
+          }
+
+          @Override public void remove() {
+            throw new UnsupportedOperationException();
+          }
+        };
+      }, "", ", ", "");
     }
 
     // Combine all predicates conjunctively
@@ -126,7 +147,8 @@ public class IoTDBTable extends AbstractQueryableTable
     // Build and issue the query and return an Enumerator over the results
     StringBuilder queryBuilder = new StringBuilder("SELECT ");
     queryBuilder.append(selectString);
-    queryBuilder.append(" FROM " + storageGroup);
+    // 此处应该怎么处理？
+    queryBuilder.append(" FROM " + storageGroup + ".*");
     queryBuilder.append(whereClause);
 
     if(limit > 0) {
@@ -186,8 +208,8 @@ public class IoTDBTable extends AbstractQueryableTable
      */
     @SuppressWarnings("UnusedDeclaration")
     public Enumerable<Object> query(List<Map.Entry<String, Class>> fields,
-        List<Map.Entry<String, String>> selectFields, List<String> predicates,
-                                    Integer limit, Integer offset) {
+           List<String> selectFields, List<String> predicates,
+           Integer limit, Integer offset) {
       return getTable().query(getConnection(), fields, selectFields, predicates, limit, offset);
     }
   }
